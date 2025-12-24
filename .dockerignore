@@ -1,0 +1,7 @@
+﻿.git
+.gitignore
+node_modules
+*.log
+.env
+.DS_Store
+Thumbs.db

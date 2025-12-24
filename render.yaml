@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: portfolio-backend
+    env: php
+    buildCommand: ""
+    startCommand: "php -S 0.0.0.0:8000 -t ."
+    envVars:
+      - key: PHPRC
+        value: ""
