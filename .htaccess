@@ -1,0 +1,15 @@
+RewriteEngine On
+
+# Gérer les requêtes API
+RewriteRule ^api/(.*)$ api.php?endpoint=$1 [QSA,L]
+
+# Pour les requêtes directes à api.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^api\.php/(.*)$ api.php?endpoint=$1 [QSA,L]
+
+# Headers pour CORS
+Header always set Access-Control-Allow-Origin "https://portfoliofrontend-kohl.vercel.app"
+Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+Header always set Access-Control-Allow-Credentials "true"

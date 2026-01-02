@@ -6,7 +6,7 @@ $isProduction = getenv('RENDER') !== false || (getenv('APP_ENV') === 'production
 
 // ============ CORS ============
 if ($isProduction) {
-    $allowedOrigin = 'https://portfolio-frontend.vercel.app';
+    $allowedOrigin = 'https://portfoliofrontend-kohl.vercel.app/';
 } else {
     $allowedOrigin = 'http://localhost:5173';
 }
