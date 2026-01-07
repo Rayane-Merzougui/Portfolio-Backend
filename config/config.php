@@ -27,29 +27,24 @@ header('Access-Control-Allow-Headers: Content-Type, X-Requested-With, Authorizat
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH');
 header('Content-Type: application/json; charset=utf-8');
 
-// Gestion des requêtes OPTIONS - DOIT ÊTRE TRÈS TÔT DANS LE SCRIPT
+// Gestion des requêtes OPTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
 
 // ============ SESSIONS ============
-// IMPORTANT: Pour CORS avec credentials, utiliser 'None' et secure en production
 ini_set('session.cookie_samesite', $isProduction ? 'None' : 'Lax');
 ini_set('session.cookie_secure', $isProduction);
 ini_set('session.cookie_httponly', true);
 ini_set('session.use_strict_mode', true);
-ini_set('session.gc_maxlifetime', 86400); // 24 heures
+ini_set('session.gc_maxlifetime', 86400); 
 
-// Démarrer la session après avoir défini les en-têtes CORS
 session_start();
 
-// Pour le débogage (à désactiver en production)
 if (!$isProduction) {
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
-    error_log("Session ID: " . session_id());
-    error_log("Session data: " . json_encode($_SESSION));
 }
 
 // ============ BASE DE DONNÉES ============
@@ -58,54 +53,65 @@ function getDB(): PDO {
     
     if ($pdo) return $pdo;
 
-    // Déclarer $isProduction comme globale
     global $isProduction;
 
     // Configuration pour production (Render)
     if ($isProduction) {
+        // Récupération des variables d'environnement de Render
         $host = getenv('DB_HOST');
         $db   = getenv('DB_NAME');
         $user = getenv('DB_USER');
         $pass = getenv('DB_PASSWORD');
+        $port = getenv('DB_PORT') ?: 3306; 
+        
+        if (!$host || !$db || !$user || !$pass) {
+            error_log("Missing database environment variables!");
+            throw new Exception('Database configuration incomplete');
+        }
+        
+        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
+        
     } else {
         // Configuration locale
         $host = '127.0.0.1';
         $db   = 'portfolio_db';
         $user = 'portfolio_user';
         $pass = 'portfolio_pass';
+        $port = 3306;
+        
+        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
     }
-    
-    $dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
     
     try {
         $pdo = new PDO($dsn, $user, $pass, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
-            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
+            PDO::ATTR_PERSISTENT => false // Important pour Render
         ]);
+        
+        // Test de la connexion
+        $pdo->query("SELECT 1");
+        
         return $pdo;
+        
     } catch (PDOException $e) {
-        error_log("Database connection failed: " . $e->getMessage());
+        // Journalisation détaillée de l'erreur
+        error_log("Database connection failed!");
+        error_log("DSN: " . $dsn);
+        error_log("User: " . $user);
+        error_log("Host: " . $host);
+        error_log("Port: " . $port);
+        error_log("Error: " . $e->getMessage());
+        error_log("Error Code: " . $e->getCode());
         
         // En production, réponse générique
         if ($isProduction) {
-            header('HTTP/1.1 500 Internal Server Error');
-            header('Content-Type: application/json');
-            echo json_encode([
-                'error' => 'Database connection error',
-                'message' => 'Please try again later'
-            ]);
+            throw new Exception('Database connection error. Please try again later.');
         } else {
-            // En développement, montrer plus de détails
-            header('HTTP/1.1 500 Internal Server Error');
-            header('Content-Type: application/json');
-            echo json_encode([
-                'error' => 'Database connection failed',
-                'details' => $e->getMessage()
-            ]);
+            throw new Exception("Database connection failed: " . $e->getMessage());
         }
-        exit();
     }
 }
 
@@ -148,13 +154,30 @@ function require_auth(): array {
     return $user;
 }
 
-// Fonction pour nettoyer les données
 function sanitize_input(string $input): string {
     return htmlspecialchars(trim($input), ENT_QUOTES, 'UTF-8');
 }
 
-// Fonction pour générer une réponse d'erreur
 function error_response(string $message, int $code = 400): void {
     json_response(['error' => $message], $code);
+}
+
+// Fonction pour valider l'email
+function validate_email(string $email): bool {
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+// Fonction pour valider le mot de passe
+function validate_password(string $password): bool {
+    return strlen($password) >= 6;
+}
+
+// Fonction pour générer une réponse de succès
+function success_response(string $message = 'Success', array $data = []): void {
+    $response = ['success' => true, 'message' => $message];
+    if (!empty($data)) {
+        $response['data'] = $data;
+    }
+    json_response($response);
 }
 ?>
