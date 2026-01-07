@@ -2,10 +2,15 @@
 require_once __DIR__ . '/../config/config.php';
 $user = require_auth();
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_response(['error' => 'Method not allowed'], 405);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    json_response(['error' => 'Method not allowed'], 405);
+}
 
-if ($isProduction) {
-  
+// Vérifier si c'est une requête JSON (base64) ou FormData
+$contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+
+if (strpos($contentType, 'application/json') !== false) {
+    // Mode JSON (base64)
     $input = json_decode(file_get_contents('php://input'), true);
     
     if (!isset($input['avatar_base64'])) {
@@ -14,12 +19,10 @@ if ($isProduction) {
     
     $base64Data = $input['avatar_base64'];
     
-
     if (!preg_match('/^data:image\/(png|jpg|jpeg|gif|webp);base64,/', $base64Data)) {
         json_response(['error' => 'Invalid image format. Use base64'], 400);
     }
     
-
     $pdo = getDB();
     $pdo->prepare('UPDATE users SET avatar_url = ? WHERE id = ?')
         ->execute([$base64Data, $user['id']]);
@@ -27,9 +30,8 @@ if ($isProduction) {
     $_SESSION['user']['avatar_url'] = $base64Data;
     
     json_response(['avatar_url' => $base64Data]);
-    
 } else {
-
+    // Mode FormData (multipart)
     if (!isset($_FILES['avatar']) || $_FILES['avatar']['error'] !== UPLOAD_ERR_OK) {
         json_response(['error' => 'Upload invalide'], 400);
     }
