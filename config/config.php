@@ -57,7 +57,7 @@ function getDB(): PDO {
 
     if ($isProduction) {
         // Configuration PostgreSQL (Render)
-        $databaseUrl = getenv('DATABASE_URL') ?: null;
+        $databaseUrl = getenv('DATABASE_URL');
         
         if ($databaseUrl) {
             // Utiliser l'URL complète de Render
@@ -67,6 +67,8 @@ function getDB(): PDO {
             $user = $url['user'];
             $pass = $url['pass'];
             $port = $url['port'] ?? 5432;
+            
+            error_log("Using DATABASE_URL: host=$host, db=$db, user=$user, port=$port");
         } else {
             // Utiliser les variables séparées
             $host = getenv('DB_HOST');
@@ -74,14 +76,22 @@ function getDB(): PDO {
             $user = getenv('DB_USER');
             $pass = getenv('DB_PASSWORD');
             $port = getenv('DB_PORT') ?: 5432;
+            
+            error_log("Using separate vars: host=$host, db=$db, user=$user, port=$port");
         }
         
         if (!$host || !$db || !$user || !$pass) {
             error_log("Missing database environment variables!");
+            error_log("DB_HOST: " . getenv('DB_HOST'));
+            error_log("DB_NAME: " . getenv('DB_NAME'));
+            error_log("DB_USER: " . getenv('DB_USER'));
+            error_log("DB_PASSWORD: " . (getenv('DB_PASSWORD') ? '***SET***' : 'NOT SET'));
             throw new Exception('Database configuration incomplete');
         }
         
+        // DSN PostgreSQL avec SSL
         $dsn = "pgsql:host=$host;port=$port;dbname=$db;sslmode=require";
+        error_log("PostgreSQL DSN: $dsn");
         
     } else {
         // Configuration locale (MySQL pour développement)
@@ -103,15 +113,19 @@ function getDB(): PDO {
         
         // Test de la connexion
         $pdo->query("SELECT 1");
+        error_log("Database connection successful!");
         
         return $pdo;
         
     } catch (PDOException $e) {
+        // Journalisation détaillée de l'erreur
         error_log("Database connection failed!");
         error_log("DSN: " . $dsn);
         error_log("User: " . $user);
         error_log("Error: " . $e->getMessage());
+        error_log("Error Code: " . $e->getCode());
         
+        // En production, réponse générique
         if ($isProduction) {
             throw new Exception('Database connection error. Please try again later.');
         } else {
@@ -159,14 +173,6 @@ function require_auth(): array {
     return $user;
 }
 
-function sanitize_input(string $input): string {
-    return htmlspecialchars(trim($input), ENT_QUOTES, 'UTF-8');
-}
-
-function error_response(string $message, int $code = 400): void {
-    json_response(['error' => $message], $code);
-}
-
 // Fonction pour valider l'email
 function validate_email(string $email): bool {
     return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
@@ -175,14 +181,5 @@ function validate_email(string $email): bool {
 // Fonction pour valider le mot de passe
 function validate_password(string $password): bool {
     return strlen($password) >= 6;
-}
-
-// Fonction pour générer une réponse de succès
-function success_response(string $message = 'Success', array $data = []): void {
-    $response = ['success' => true, 'message' => $message];
-    if (!empty($data)) {
-        $response['data'] = $data;
-    }
-    json_response($response);
 }
 ?>
