@@ -56,45 +56,69 @@ function getDB(): PDO {
     global $isProduction;
 
     if ($isProduction) {
-        // Configuration PostgreSQL (Render)
-        $databaseUrl = getenv('DATABASE_URL');
-        
-        if ($databaseUrl) {
-            // Utiliser l'URL complète de Render
-            $url = parse_url($databaseUrl);
-            $host = $url['host'];
-            $db   = ltrim($url['path'], '/');
-            $user = $url['user'];
-            $pass = $url['pass'];
-            $port = $url['port'] ?? 5432;
+        // Essayer d'abord PostgreSQL
+        try {
+            $databaseUrl = getenv('DATABASE_URL');
             
-            error_log("Using DATABASE_URL: host=$host, db=$db, user=$user, port=$port");
-        } else {
-            // Utiliser les variables séparées
+            if ($databaseUrl) {
+                $url = parse_url($databaseUrl);
+                $host = $url['host'];
+                $db   = ltrim($url['path'], '/');
+                $user = $url['user'];
+                $pass = $url['pass'];
+                $port = $url['port'] ?? 5432;
+                
+                $dsn = "pgsql:host=$host;port=$port;dbname=$db;sslmode=require";
+                error_log("Trying PostgreSQL connection...");
+                
+                $pdo = new PDO($dsn, $user, $pass, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                ]);
+                
+                $pdo->query("SELECT 1");
+                error_log("PostgreSQL connection successful!");
+                return $pdo;
+            }
+        } catch (PDOException $e) {
+            error_log("PostgreSQL failed: " . $e->getMessage());
+            // Continuer pour essayer MySQL
+        }
+        
+        // Si PostgreSQL échoue, essayer MySQL avec les variables d'environnement
+        try {
             $host = getenv('DB_HOST');
             $db   = getenv('DB_NAME');
             $user = getenv('DB_USER');
             $pass = getenv('DB_PASSWORD');
-            $port = getenv('DB_PORT') ?: 5432;
+            $port = getenv('DB_PORT') ?: 3306;
             
-            error_log("Using separate vars: host=$host, db=$db, user=$user, port=$port");
+            if (!$host || !$db || !$user || !$pass) {
+                throw new Exception('Database configuration incomplete');
+            }
+            
+            $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
+            error_log("Trying MySQL connection...");
+            
+            $pdo = new PDO($dsn, $user, $pass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
+            ]);
+            
+            $pdo->query("SELECT 1");
+            error_log("MySQL connection successful!");
+            return $pdo;
+            
+        } catch (PDOException $e) {
+            error_log("MySQL also failed: " . $e->getMessage());
+            throw new Exception('Database connection error. Please try again later.');
         }
-        
-        if (!$host || !$db || !$user || !$pass) {
-            error_log("Missing database environment variables!");
-            error_log("DB_HOST: " . getenv('DB_HOST'));
-            error_log("DB_NAME: " . getenv('DB_NAME'));
-            error_log("DB_USER: " . getenv('DB_USER'));
-            error_log("DB_PASSWORD: " . (getenv('DB_PASSWORD') ? '***SET***' : 'NOT SET'));
-            throw new Exception('Database configuration incomplete');
-        }
-        
-        // DSN PostgreSQL avec SSL
-        $dsn = "pgsql:host=$host;port=$port;dbname=$db;sslmode=require";
-        error_log("PostgreSQL DSN: $dsn");
         
     } else {
-        // Configuration locale (MySQL pour développement)
+        // Configuration locale
         $host = '127.0.0.1';
         $db   = 'portfolio_db';
         $user = 'portfolio_user';
@@ -102,35 +126,14 @@ function getDB(): PDO {
         $port = 3306;
         
         $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
-    }
-    
-    try {
+        
         $pdo = new PDO($dsn, $user, $pass, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
         
-        // Test de la connexion
-        $pdo->query("SELECT 1");
-        error_log("Database connection successful!");
-        
         return $pdo;
-        
-    } catch (PDOException $e) {
-        // Journalisation détaillée de l'erreur
-        error_log("Database connection failed!");
-        error_log("DSN: " . $dsn);
-        error_log("User: " . $user);
-        error_log("Error: " . $e->getMessage());
-        error_log("Error Code: " . $e->getCode());
-        
-        // En production, réponse générique
-        if ($isProduction) {
-            throw new Exception('Database connection error. Please try again later.');
-        } else {
-            throw new Exception("Database connection failed: " . $e->getMessage());
-        }
     }
 }
 
