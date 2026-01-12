@@ -56,66 +56,93 @@ function getDB(): PDO {
     global $isProduction;
 
     if ($isProduction) {
-        // Essayer d'abord PostgreSQL
-        try {
-            $databaseUrl = getenv('DATABASE_URL');
-            
-            if ($databaseUrl) {
-                $url = parse_url($databaseUrl);
-                $host = $url['host'];
-                $db   = ltrim($url['path'], '/');
-                $user = $url['user'];
-                $pass = $url['pass'];
-                $port = $url['port'] ?? 5432;
-                
-                $dsn = "pgsql:host=$host;port=$port;dbname=$db;sslmode=require";
-                error_log("Trying PostgreSQL connection...");
-                
-                $pdo = new PDO($dsn, $user, $pass, [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false,
-                ]);
-                
-                $pdo->query("SELECT 1");
-                error_log("PostgreSQL connection successful!");
-                return $pdo;
-            }
-        } catch (PDOException $e) {
-            error_log("PostgreSQL failed: " . $e->getMessage());
-            // Continuer pour essayer MySQL
+        // Parse l'URL PostgreSQL manuellement
+        $databaseUrl = getenv('DATABASE_URL');
+        
+        if (!$databaseUrl) {
+            throw new Exception('DATABASE_URL environment variable is not set');
         }
         
-        // Si PostgreSQL échoue, essayer MySQL avec les variables d'environnement
+        // Exemple: postgresql://user:pass@host:port/dbname
+        // Parse l'URL
+        $pattern = '/^postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/';
+        
+        if (!preg_match($pattern, $databaseUrl, $matches)) {
+            error_log("Invalid DATABASE_URL format: " . $databaseUrl);
+            throw new Exception('Invalid database URL format');
+        }
+        
+        $user = $matches[1];
+        $pass = $matches[2];
+        $host = $matches[3];
+        $port = $matches[4];
+        $dbname = $matches[5];
+        
+        error_log("Parsed DB: host=$host, db=$dbname, user=$user, port=$port");
+        
+        // Essayez plusieurs méthodes de connexion
+        
+        // Méthode 1: PDO avec PostgreSQL
         try {
-            $host = getenv('DB_HOST');
-            $db   = getenv('DB_NAME');
-            $user = getenv('DB_USER');
-            $pass = getenv('DB_PASSWORD');
-            $port = getenv('DB_PORT') ?: 3306;
-            
-            if (!$host || !$db || !$user || !$pass) {
-                throw new Exception('Database configuration incomplete');
-            }
-            
-            $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
-            error_log("Trying MySQL connection...");
+            $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
+            error_log("Trying DSN: $dsn");
             
             $pdo = new PDO($dsn, $user, $pass, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
-                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
+                PDO::ATTR_PERSISTENT => false
             ]);
             
-            $pdo->query("SELECT 1");
-            error_log("MySQL connection successful!");
+            // Test de connexion
+            $pdo->query('SELECT 1');
+            error_log("PostgreSQL connection successful with DSN method!");
             return $pdo;
             
-        } catch (PDOException $e) {
-            error_log("MySQL also failed: " . $e->getMessage());
-            throw new Exception('Database connection error. Please try again later.');
+        } catch (Exception $e) {
+            error_log("Method 1 failed: " . $e->getMessage());
         }
+        
+        // Méthode 2: Sans SSL
+        try {
+            $dsn = "pgsql:host=$host;port=$port;dbname=$dbname;sslmode=disable";
+            error_log("Trying DSN without SSL: $dsn");
+            
+            $pdo = new PDO($dsn, $user, $pass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]);
+            
+            $pdo->query('SELECT 1');
+            error_log("PostgreSQL connection successful without SSL!");
+            return $pdo;
+            
+        } catch (Exception $e) {
+            error_log("Method 2 failed: " . $e->getMessage());
+        }
+        
+        // Méthode 3: Utiliser pg_connect (si disponible)
+        if (function_exists('pg_connect')) {
+            try {
+                $connString = "host=$host port=$port dbname=$dbname user=$user password=$pass";
+                $pgconn = pg_connect($connString);
+                
+                if ($pgconn) {
+                    error_log("pg_connect successful!");
+                    // Créer un wrapper PDO pour pg_connect
+                    // Note: Ceci est simplifié, en réalité vous devriez adapter votre code
+                    // ou utiliser pg_* fonctions directement
+                    throw new Exception('Use pg_connect functions instead of PDO');
+                }
+            } catch (Exception $e) {
+                error_log("pg_connect failed: " . $e->getMessage());
+            }
+        }
+        
+        // Si tout échoue
+        error_log("All connection methods failed!");
+        throw new Exception('Unable to connect to database. Please check configuration.');
         
     } else {
         // Configuration locale
