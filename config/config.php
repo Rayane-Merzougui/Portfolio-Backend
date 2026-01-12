@@ -82,6 +82,12 @@ function getDB(): PDO {
             // Créer les tables si nécessaire
             createSQLiteTables($pdo);
             
+            // Créer le dossier uploads
+            $uploadsDir = __DIR__ . '/public/uploads';
+            if (!is_dir($uploadsDir)) {
+                mkdir($uploadsDir, 0777, true);
+            }
+            
             error_log("SQLite connection successful!");
             return $pdo;
             
@@ -148,6 +154,15 @@ function getDB(): PDO {
                     $pdo->query("SELECT 1");
                     error_log("PostgreSQL connection successful with: " . str_replace($pass, '****', $dsn));
                     
+                    // Créer les tables pour PostgreSQL si nécessaire
+                    createPostgresTables($pdo);
+                    
+                    // Créer le dossier uploads
+                    $uploadsDir = __DIR__ . '/public/uploads';
+                    if (!is_dir($uploadsDir)) {
+                        mkdir($uploadsDir, 0777, true);
+                    }
+                    
                     return $pdo;
                     
                 } catch (Exception $e) {
@@ -178,6 +193,12 @@ function getDB(): PDO {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
+        
+        // Créer le dossier uploads
+        $uploadsDir = __DIR__ . '/public/uploads';
+        if (!is_dir($uploadsDir)) {
+            mkdir($uploadsDir, 0777, true);
+        }
         
         return $pdo;
     }
@@ -213,6 +234,42 @@ function createSQLiteTables($pdo) {
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_articles_created_at ON articles(created_at DESC)');
     
     error_log("SQLite tables created or already exist");
+}
+
+function createPostgresTables($pdo) {
+    try {
+        // Créer la table users
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                avatar_url TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ');
+        
+        // Créer la table articles
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS articles (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                title VARCHAR(255) NOT NULL,
+                body TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ');
+        
+        // Créer les index
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_articles_user_id ON articles(user_id)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_articles_created_at ON articles(created_at DESC)');
+        
+        error_log("PostgreSQL tables created or already exist");
+    } catch (Exception $e) {
+        error_log("Error creating PostgreSQL tables: " . $e->getMessage());
+        // Les tables existent peut-être déjà
+    }
 }
 
 // ============ FONCTIONS UTILITAIRES ============
