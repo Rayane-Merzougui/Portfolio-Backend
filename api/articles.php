@@ -8,7 +8,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $perPage = 10;
     $offset = ($page - 1) * $perPage;
 
-    $total = (int)$pdo->query('SELECT COUNT(*) AS c FROM articles')->fetch()['c'];
+    // PostgreSQL : utiliser 'count' au lieu de 'c'
+    $total = (int)$pdo->query('SELECT COUNT(*) FROM articles')->fetch()['count'];
+    
     $stmt = $pdo->prepare(
         'SELECT a.id, a.title, a.body, a.created_at, u.name AS author_name, u.avatar_url
          FROM articles a JOIN users u ON a.user_id = u.id
@@ -36,9 +38,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = trim((string)($data['body'] ?? ''));
     if ($title === '' || $body === '') json_response(['error' => 'Titre et contenu requis'], 422); 
 
-    $stmt = $pdo->prepare('INSERT INTO articles (user_id, title, body) VALUES (?, ?, ?)');
+    // PostgreSQL : utiliser RETURNING pour récupérer l'ID
+    $stmt = $pdo->prepare('INSERT INTO articles (user_id, title, body) VALUES (?, ?, ?) RETURNING id');
     $stmt->execute([$user['id'], $title, $body]);
-    json_response(['ok' => true, 'id' => (int)$pdo->lastInsertId()], 201); 
+    $result = $stmt->fetch();
+    $id = (int)$result['id'];
+    
+    json_response(['ok' => true, 'id' => $id], 201); 
 }
 
 json_response(['error' => 'Method not allowed'], 405); 

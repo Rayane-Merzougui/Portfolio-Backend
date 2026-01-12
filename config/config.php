@@ -55,24 +55,36 @@ function getDB(): PDO {
 
     global $isProduction;
 
-    // Configuration pour production (Render)
     if ($isProduction) {
-        // Récupération des variables d'environnement de Render
-        $host = getenv('DB_HOST');
-        $db   = getenv('DB_NAME');
-        $user = getenv('DB_USER');
-        $pass = getenv('DB_PASSWORD');
-        $port = getenv('DB_PORT') ?: 3306; 
+        // Configuration PostgreSQL (Render)
+        $databaseUrl = getenv('DATABASE_URL') ?: null;
+        
+        if ($databaseUrl) {
+            // Utiliser l'URL complète de Render
+            $url = parse_url($databaseUrl);
+            $host = $url['host'];
+            $db   = ltrim($url['path'], '/');
+            $user = $url['user'];
+            $pass = $url['pass'];
+            $port = $url['port'] ?? 5432;
+        } else {
+            // Utiliser les variables séparées
+            $host = getenv('DB_HOST');
+            $db   = getenv('DB_NAME');
+            $user = getenv('DB_USER');
+            $pass = getenv('DB_PASSWORD');
+            $port = getenv('DB_PORT') ?: 5432;
+        }
         
         if (!$host || !$db || !$user || !$pass) {
             error_log("Missing database environment variables!");
             throw new Exception('Database configuration incomplete');
         }
         
-        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
+        $dsn = "pgsql:host=$host;port=$port;dbname=$db;sslmode=require";
         
     } else {
-        // Configuration locale
+        // Configuration locale (MySQL pour développement)
         $host = '127.0.0.1';
         $db   = 'portfolio_db';
         $user = 'portfolio_user';
@@ -87,8 +99,6 @@ function getDB(): PDO {
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
-            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
-            PDO::ATTR_PERSISTENT => false // Important pour Render
         ]);
         
         // Test de la connexion
@@ -97,16 +107,11 @@ function getDB(): PDO {
         return $pdo;
         
     } catch (PDOException $e) {
-        // Journalisation détaillée de l'erreur
         error_log("Database connection failed!");
         error_log("DSN: " . $dsn);
         error_log("User: " . $user);
-        error_log("Host: " . $host);
-        error_log("Port: " . $port);
         error_log("Error: " . $e->getMessage());
-        error_log("Error Code: " . $e->getCode());
         
-        // En production, réponse générique
         if ($isProduction) {
             throw new Exception('Database connection error. Please try again later.');
         } else {

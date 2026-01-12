@@ -16,11 +16,24 @@ $stmt->execute([$email]);
 if ($stmt->fetch()) json_response(['error' => 'Email déjà utilisé'], 409); 
 
 $hash = password_hash($password, PASSWORD_DEFAULT);
-$pdo->prepare('INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)')
-    ->execute([$email, $hash, $name]);
 
-$id = (int)$pdo->lastInsertId();
-$_SESSION['user'] = ['id' => $id, 'email' => $email, 'name' => $name, 'avatar_url' => null];
+// PostgreSQL : utiliser RETURNING pour récupérer l'ID
+$stmt = $pdo->prepare('INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?) RETURNING id');
+$stmt->execute([$email, $hash, $name]);
+$result = $stmt->fetch();
+$id = (int)$result['id'];
+
+// Récupérer l'utilisateur complet pour avoir les valeurs par défaut (comme avatar_url)
+$stmt = $pdo->prepare('SELECT id, email, name, avatar_url FROM users WHERE id = ?');
+$stmt->execute([$id]);
+$user = $stmt->fetch();
+
+$_SESSION['user'] = [
+    'id' => (int)$user['id'],
+    'email' => $user['email'],
+    'name' => $user['name'],
+    'avatar_url' => $user['avatar_url'],
+];
 
 json_response(['user' => $_SESSION['user']]); 
 ?>

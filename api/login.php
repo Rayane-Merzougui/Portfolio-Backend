@@ -5,7 +5,7 @@ $data = require_json_post();
 $email = trim((string)($data['email'] ?? ''));
 $password = (string)($data['password'] ?? '');
 
-$pdo = getDB(); // Changé
+$pdo = getDB();
 $stmt = $pdo->prepare('SELECT id, email, password_hash, name, avatar_url FROM users WHERE email = ?');
 $stmt->execute([$email]);
 $user = $stmt->fetch();
