@@ -4,10 +4,15 @@ services:
     env: php
     region: frankfurt
     buildCommand: |
-      apt-get update && apt-get install -y libpq-dev
-      docker-php-ext-install pdo pdo_pgsql
-      composer install --no-dev --optimize-autoloader
+      echo "Building PHP application..."
+      # SQLite est inclus par défaut dans PHP
     startCommand: php -S 0.0.0.0:10000 -t .
     envVars:
-      - key: DATABASE_URL
-        value: postgresql://portfolio_user:Ap7Y9a8sowNWoeifZ1tDXTFiXI5F8x89@dpg-d5ham7er433s73bl9450-a.frankfurt-postgres.render.com:5432/portfolio_db_9n3n
+      - key: APP_ENV
+        value: production
+      - key: FRONTEND_URL
+        value: https://portfoliofrontend-kohl.vercel.app
+    disk:
+      name: sqlite-storage
+      mountPath: /var/www/html
+      sizeGB: 1

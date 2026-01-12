@@ -56,93 +56,112 @@ function getDB(): PDO {
     global $isProduction;
 
     if ($isProduction) {
-        // Parse l'URL PostgreSQL manuellement
-        $databaseUrl = getenv('DATABASE_URL');
+        // Solution 1: SQLite (la plus simple et garantie de fonctionner)
+        $dbFile = __DIR__ . '/database.sqlite';
         
-        if (!$databaseUrl) {
-            throw new Exception('DATABASE_URL environment variable is not set');
+        // Créer le répertoire si nécessaire
+        $dbDir = dirname($dbFile);
+        if (!is_dir($dbDir)) {
+            mkdir($dbDir, 0755, true);
         }
         
-        // Exemple: postgresql://user:pass@host:port/dbname
-        // Parse l'URL
-        $pattern = '/^postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/';
-        
-        if (!preg_match($pattern, $databaseUrl, $matches)) {
-            error_log("Invalid DATABASE_URL format: " . $databaseUrl);
-            throw new Exception('Invalid database URL format');
+        // Créer le fichier SQLite s'il n'existe pas
+        if (!file_exists($dbFile)) {
+            touch($dbFile);
         }
         
-        $user = $matches[1];
-        $pass = $matches[2];
-        $host = $matches[3];
-        $port = $matches[4];
-        $dbname = $matches[5];
+        $dsn = "sqlite:$dbFile";
         
-        error_log("Parsed DB: host=$host, db=$dbname, user=$user, port=$port");
-        
-        // Essayez plusieurs méthodes de connexion
-        
-        // Méthode 1: PDO avec PostgreSQL
         try {
-            $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
-            error_log("Trying DSN: $dsn");
-            
-            $pdo = new PDO($dsn, $user, $pass, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-                PDO::ATTR_PERSISTENT => false
-            ]);
-            
-            // Test de connexion
-            $pdo->query('SELECT 1');
-            error_log("PostgreSQL connection successful with DSN method!");
-            return $pdo;
-            
-        } catch (Exception $e) {
-            error_log("Method 1 failed: " . $e->getMessage());
-        }
-        
-        // Méthode 2: Sans SSL
-        try {
-            $dsn = "pgsql:host=$host;port=$port;dbname=$dbname;sslmode=disable";
-            error_log("Trying DSN without SSL: $dsn");
-            
-            $pdo = new PDO($dsn, $user, $pass, [
+            $pdo = new PDO($dsn, null, null, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]);
             
-            $pdo->query('SELECT 1');
-            error_log("PostgreSQL connection successful without SSL!");
+            // Créer les tables si nécessaire
+            createSQLiteTables($pdo);
+            
+            error_log("SQLite connection successful!");
             return $pdo;
             
         } catch (Exception $e) {
-            error_log("Method 2 failed: " . $e->getMessage());
+            error_log("SQLite connection failed: " . $e->getMessage());
+            // Continuer pour essayer PostgreSQL
         }
         
-        // Méthode 3: Utiliser pg_connect (si disponible)
-        if (function_exists('pg_connect')) {
-            try {
-                $connString = "host=$host port=$port dbname=$dbname user=$user password=$pass";
-                $pgconn = pg_connect($connString);
-                
-                if ($pgconn) {
-                    error_log("pg_connect successful!");
-                    // Créer un wrapper PDO pour pg_connect
-                    // Note: Ceci est simplifié, en réalité vous devriez adapter votre code
-                    // ou utiliser pg_* fonctions directement
-                    throw new Exception('Use pg_connect functions instead of PDO');
-                }
-            } catch (Exception $e) {
-                error_log("pg_connect failed: " . $e->getMessage());
+        // Solution 2: Essayer PostgreSQL comme fallback
+        try {
+            // Récupérer l'URL PostgreSQL depuis les variables d'environnement
+            $databaseUrl = getenv('DATABASE_URL');
+            
+            if (!$databaseUrl) {
+                throw new Exception('DATABASE_URL not set');
             }
+            
+            error_log("DATABASE_URL: " . substr($databaseUrl, 0, 50) . "...");
+            
+            // Nettoyer l'URL (enlever les espaces et retours à la ligne)
+            $databaseUrl = trim($databaseUrl);
+            
+            // Méthode robuste pour parser l'URL PostgreSQL
+            // Format: postgresql://username:password@host:port/database
+            
+            // Extraire les parties avec parse_url
+            $parsed = parse_url($databaseUrl);
+            
+            if (!$parsed) {
+                throw new Exception('Failed to parse DATABASE_URL');
+            }
+            
+            $host = $parsed['host'] ?? '';
+            $port = $parsed['port'] ?? 5432;
+            $user = $parsed['user'] ?? '';
+            $pass = $parsed['pass'] ?? '';
+            $dbname = isset($parsed['path']) ? ltrim($parsed['path'], '/') : '';
+            
+            error_log("Parsed: host=$host, port=$port, user=$user, db=$dbname");
+            
+            if (!$host || !$user || !$pass || !$dbname) {
+                throw new Exception('Missing database connection parameters');
+            }
+            
+            // Essayer différentes variations du DSN
+            $dsnOptions = [
+                "pgsql:host=$host;port=$port;dbname=$dbname",
+                "pgsql:host=$host;port=$port;dbname=$dbname;sslmode=require",
+                "pgsql:host=$host;port=$port;dbname=$dbname;sslmode=prefer",
+                "pgsql:host=$host;port=$port;dbname=$dbname;sslmode=disable",
+            ];
+            
+            foreach ($dsnOptions as $dsn) {
+                try {
+                    error_log("Trying DSN: " . str_replace($pass, '****', $dsn));
+                    
+                    $pdo = new PDO($dsn, $user, $pass, [
+                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                        PDO::ATTR_EMULATE_PREPARES => false,
+                    ]);
+                    
+                    // Tester la connexion
+                    $pdo->query("SELECT 1");
+                    error_log("PostgreSQL connection successful with: " . str_replace($pass, '****', $dsn));
+                    
+                    return $pdo;
+                    
+                } catch (Exception $e) {
+                    error_log("Failed with DSN: " . $e->getMessage());
+                    continue;
+                }
+            }
+            
+            throw new Exception('All PostgreSQL connection attempts failed');
+            
+        } catch (Exception $e) {
+            error_log("PostgreSQL fallback also failed: " . $e->getMessage());
+            throw new Exception('Database connection error. Please try again later.');
         }
-        
-        // Si tout échoue
-        error_log("All connection methods failed!");
-        throw new Exception('Unable to connect to database. Please check configuration.');
         
     } else {
         // Configuration locale
@@ -162,6 +181,38 @@ function getDB(): PDO {
         
         return $pdo;
     }
+}
+
+function createSQLiteTables($pdo) {
+    // Créer la table users
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            name TEXT NOT NULL,
+            avatar_url TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ');
+    
+    // Créer la table articles
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS articles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    ');
+    
+    // Créer les index
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_articles_user_id ON articles(user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_articles_created_at ON articles(created_at DESC)');
+    
+    error_log("SQLite tables created or already exist");
 }
 
 // ============ FONCTIONS UTILITAIRES ============
