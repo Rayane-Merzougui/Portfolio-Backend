@@ -9,12 +9,11 @@
 
 ## 📸 Screenshots / Captures d'écran
 
-> _Add screenshots (e.g. Postman/Insomnia calls, terminal output, architecture diagram) to a `docs/screenshots/` folder and update the paths below._
-> _Ajoute des captures (ex. appels Postman/Insomnia, sortie terminal, schéma d'architecture) dans un dossier `docs/screenshots/` et mets à jour les chemins ci-dessous._
+> _Add screenshots (e.g. Postman/Insomnia calls, terminal output, architecture diagram) to a `docs/screenshots/` folder and update the paths below._ > _Ajoute des captures (ex. appels Postman/Insomnia, sortie terminal, schéma d'architecture) dans un dossier `docs/screenshots/` et mets à jour les chemins ci-dessous._
 
-| API root (`/api.php`) | Login response | Articles list | Render dashboard |
-|:---:|:---:|:---:|:---:|
-| ![API root](docs/screenshots/api-root.png) | ![Login response](docs/screenshots/login-response.png) | ![Articles list](docs/screenshots/articles-list.png) | ![Render dashboard](docs/screenshots/render-dashboard.png) |
+|       API root (`/api.php`)        |               Login response               |                Articles list                 |                    Render dashboard                     |
+| :--------------------------------: | :----------------------------------------: | :------------------------------------------: | :-----------------------------------------------------: |
+| ![API root](./screenshots/api.PNG) | ![Login response](./screenshots/login.PNG) | ![Articles list](./screenshots/articles.PNG) | ![Render dashboard](./screenshots/dashboard-render.PNG) |
 
 ---
 
@@ -24,14 +23,14 @@ API REST en **PHP natif** (sans framework) qui alimente mon [portfolio](https://
 
 ### 🛠️ Stack technique
 
-| Catégorie          | Technologies                                        |
-|---------------------|-------------------------------------------------------|
-| Langage              | PHP 8.2 (natif, sans framework)                       |
-| Base de données      | MySQL (local) — SQLite / PostgreSQL (production)      |
-| Accès aux données    | PDO (requêtes préparées)                               |
-| Serveur              | Apache (Docker) / serveur intégré PHP                  |
-| Sessions             | Sessions PHP natives (cookies `SameSite`/`Secure`)      |
-| Déploiement          | [Render](https://render.com/) (+ Docker)                |
+| Catégorie         | Technologies                                       |
+| ----------------- | -------------------------------------------------- |
+| Langage           | PHP 8.2 (natif, sans framework)                    |
+| Base de données   | MySQL (local) — SQLite / PostgreSQL (production)   |
+| Accès aux données | PDO (requêtes préparées)                           |
+| Serveur           | Apache (Docker) / serveur intégré PHP              |
+| Sessions          | Sessions PHP natives (cookies `SameSite`/`Secure`) |
+| Déploiement       | [Render](https://render.com/) (+ Docker)           |
 
 > 💡 Le backend est conçu pour être **portable** : il utilise MySQL en développement local, et bascule automatiquement sur SQLite (avec repli sur PostgreSQL) en production, selon les contraintes d'hébergement de Render.
 
@@ -48,17 +47,18 @@ API REST en **PHP natif** (sans framework) qui alimente mon [portfolio](https://
 
 Toutes les routes passent par le point d'entrée unique `api.php` (ex. `/api.php/login` en production).
 
-| Méthode | Endpoint          | Description                              | Auth |
-|---------|-------------------|-------------------------------------------|:---:|
-| `POST`  | `/register`         | Créer un compte                           | ❌ |
-| `POST`  | `/login`             | Se connecter                              | ❌ |
-| `POST`  | `/logout`             | Se déconnecter                            | ✅ |
-| `GET`   | `/me`                  | Récupérer l'utilisateur connecté          | ✅ |
-| `GET`   | `/articles`             | Lister les articles (`page`, `per_page`) | ❌ |
-| `POST`  | `/articles`              | Créer un article                          | ✅ |
-| `POST`  | `/upload_avatar`          | Changer son avatar                        | ✅ |
+| Méthode | Endpoint         | Description                              | Auth |
+| ------- | ---------------- | ---------------------------------------- | :--: |
+| `POST`  | `/register`      | Créer un compte                          |  ❌  |
+| `POST`  | `/login`         | Se connecter                             |  ❌  |
+| `POST`  | `/logout`        | Se déconnecter                           |  ✅  |
+| `GET`   | `/me`            | Récupérer l'utilisateur connecté         |  ✅  |
+| `GET`   | `/articles`      | Lister les articles (`page`, `per_page`) |  ❌  |
+| `POST`  | `/articles`      | Créer un article                         |  ✅  |
+| `POST`  | `/upload_avatar` | Changer son avatar                       |  ✅  |
 
 **Exemple de réponse — `GET /articles`**
+
 ```json
 {
   "items": [
@@ -105,20 +105,24 @@ Toutes les routes passent par le point d'entrée unique `api.php` (ex. `/api.php
 **Prérequis :** PHP ≥ 8.2 avec les extensions `pdo`, `pdo_mysql`, `mbstring`, `json`, et MySQL (ou MariaDB) en local.
 
 **1. Cloner le dépôt**
+
 ```bash
 git clone https://github.com/Rayane-Merzougui/Portfolio-Backend.git
 cd Portfolio-Backend
 ```
 
 **2. Créer la base de données locale**
+
 ```sql
 CREATE DATABASE portfolio_db;
 CREATE USER 'portfolio_user'@'localhost' IDENTIFIED BY 'portfolio_pass';
 GRANT ALL PRIVILEGES ON portfolio_db.* TO 'portfolio_user'@'localhost';
 ```
+
 > Les tables `users` et `articles` sont créées automatiquement au premier lancement (voir `config/config.php`) pour SQLite/PostgreSQL ; en MySQL local, pensez à créer ces deux tables si elles n'existent pas encore (colonnes : `id`, `email`, `password_hash`, `name`, `avatar_url`, `created_at` pour `users` ; `id`, `user_id`, `title`, `body`, `created_at` pour `articles`).
 
 **3. Lancer le serveur PHP intégré**
+
 ```bash
 php -S localhost:8000
 ```
@@ -126,6 +130,7 @@ php -S localhost:8000
 L'API est alors accessible sur `http://localhost:8000`, et acceptera les requêtes du frontend lancé sur `http://localhost:5173`.
 
 **Alternative avec Docker :**
+
 ```bash
 docker build -t portfolio-backend .
 docker run -p 8080:8080 portfolio-backend
@@ -134,6 +139,7 @@ docker run -p 8080:8080 portfolio-backend
 ### ☁️ Déploiement
 
 Le backend est déployé sur **Render** (voir `render.yaml`) :
+
 - Environnement PHP avec démarrage via `php -S 0.0.0.0:10000`
 - Stockage persistant (disque) pour la base SQLite et les fichiers uploadés
 - Variables d'environnement : `APP_ENV=production`, `FRONTEND_URL`
@@ -160,14 +166,14 @@ REST API built with **native PHP** (no framework) powering my [portfolio](https:
 
 ### 🛠️ Tech stack
 
-| Category            | Technologies                                          |
-|----------------------|---------------------------------------------------------|
-| Language              | PHP 8.2 (native, no framework)                          |
-| Database              | MySQL (local) — SQLite / PostgreSQL (production)        |
-| Data access            | PDO (prepared statements)                                |
-| Server                  | Apache (Docker) / PHP built-in server                    |
-| Sessions                 | Native PHP sessions (`SameSite`/`Secure` cookies)         |
-| Deployment                | [Render](https://render.com/) (+ Docker)                  |
+| Category    | Technologies                                      |
+| ----------- | ------------------------------------------------- |
+| Language    | PHP 8.2 (native, no framework)                    |
+| Database    | MySQL (local) — SQLite / PostgreSQL (production)  |
+| Data access | PDO (prepared statements)                         |
+| Server      | Apache (Docker) / PHP built-in server             |
+| Sessions    | Native PHP sessions (`SameSite`/`Secure` cookies) |
+| Deployment  | [Render](https://render.com/) (+ Docker)          |
 
 > 💡 The backend is built to be **portable**: it uses MySQL for local development, and automatically switches to SQLite (with a PostgreSQL fallback) in production, based on Render's hosting constraints.
 
@@ -184,17 +190,18 @@ REST API built with **native PHP** (no framework) powering my [portfolio](https:
 
 All routes go through the single entry point `api.php` (e.g. `/api.php/login` in production).
 
-| Method  | Endpoint          | Description                              | Auth |
-|---------|-------------------|-------------------------------------------|:---:|
-| `POST`  | `/register`         | Create an account                         | ❌ |
-| `POST`  | `/login`             | Log in                                    | ❌ |
-| `POST`  | `/logout`             | Log out                                   | ✅ |
-| `GET`   | `/me`                  | Get the current logged-in user            | ✅ |
-| `GET`   | `/articles`             | List articles (`page`, `per_page`)       | ❌ |
-| `POST`  | `/articles`              | Create an article                         | ✅ |
-| `POST`  | `/upload_avatar`          | Update avatar                             | ✅ |
+| Method | Endpoint         | Description                        | Auth |
+| ------ | ---------------- | ---------------------------------- | :--: |
+| `POST` | `/register`      | Create an account                  |  ❌  |
+| `POST` | `/login`         | Log in                             |  ❌  |
+| `POST` | `/logout`        | Log out                            |  ✅  |
+| `GET`  | `/me`            | Get the current logged-in user     |  ✅  |
+| `GET`  | `/articles`      | List articles (`page`, `per_page`) |  ❌  |
+| `POST` | `/articles`      | Create an article                  |  ✅  |
+| `POST` | `/upload_avatar` | Update avatar                      |  ✅  |
 
 **Sample response — `GET /articles`**
+
 ```json
 {
   "items": [
@@ -241,20 +248,24 @@ All routes go through the single entry point `api.php` (e.g. `/api.php/login` in
 **Requirements:** PHP ≥ 8.2 with the `pdo`, `pdo_mysql`, `mbstring`, `json` extensions, and MySQL (or MariaDB) running locally.
 
 **1. Clone the repo**
+
 ```bash
 git clone https://github.com/Rayane-Merzougui/Portfolio-Backend.git
 cd Portfolio-Backend
 ```
 
 **2. Create the local database**
+
 ```sql
 CREATE DATABASE portfolio_db;
 CREATE USER 'portfolio_user'@'localhost' IDENTIFIED BY 'portfolio_pass';
 GRANT ALL PRIVILEGES ON portfolio_db.* TO 'portfolio_user'@'localhost';
 ```
+
 > The `users` and `articles` tables are auto-created on first run (see `config/config.php`) for SQLite/PostgreSQL; for local MySQL, create these two tables yourself if they don't exist yet (columns: `id`, `email`, `password_hash`, `name`, `avatar_url`, `created_at` for `users`; `id`, `user_id`, `title`, `body`, `created_at` for `articles`).
 
 **3. Start the built-in PHP server**
+
 ```bash
 php -S localhost:8000
 ```
@@ -262,6 +273,7 @@ php -S localhost:8000
 The API is then available at `http://localhost:8000`, and will accept requests from the frontend running on `http://localhost:5173`.
 
 **Alternative with Docker:**
+
 ```bash
 docker build -t portfolio-backend .
 docker run -p 8080:8080 portfolio-backend
@@ -270,6 +282,7 @@ docker run -p 8080:8080 portfolio-backend
 ### ☁️ Deployment
 
 The backend is deployed on **Render** (see `render.yaml`):
+
 - PHP environment started via `php -S 0.0.0.0:10000`
 - Persistent disk storage for the SQLite database and uploaded files
 - Environment variables: `APP_ENV=production`, `FRONTEND_URL`
